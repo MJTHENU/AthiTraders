@@ -19,6 +19,7 @@ class Loan extends Model
         'loan_amount',
         'loan_category',
         'loan_date',
+        'total_amount',
         'status',
         'image',
         'added_on',

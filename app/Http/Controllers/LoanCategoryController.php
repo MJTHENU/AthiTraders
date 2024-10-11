@@ -14,24 +14,14 @@ class LoanCategoryController extends Controller
      */
     public function index()
     {
-        $loan_categories = LoanCategory::all();
+        $loan_category = LoanCategory::all();
 
-        if ($loan_categories->isEmpty()) {
+        if($loan_category->isEmpty()) {
             return response()->json(['message' => 'Data not found'], 404);
         }
 
-        // Convert id fields to string explicitly
-        $loan_categories = $loan_categories->map(function ($category) {
-            $category->id = (string) $category->id; // Ensure id is a string
-            $category->category_id = (string) $category->category_id; // Convert category_id to string if needed
-            return $category;
-        });
-
-        return response()->json(['message' => $loan_categories], 200);
+        return response()->json(['message' => $loan_category], 200);
     }
-
-    
-
 
     /**
      * Show the form for creating a new resource.
@@ -44,41 +34,47 @@ class LoanCategoryController extends Controller
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
-    {
-        try{
-            $validateData = $request->validate([
+  public function store(Request $request)
+{
+    try {
+        $validateData = $request->validate([
+            'category_id' => 'required|integer', // Allow only numbers for category_id
+            'category_name' => [
+                'required',
+                'string',
+                'max:100',
+                function ($attribute, $value, $fail) {
+                    // Check for existing category name, case insensitive
+                    if (LoanCategory::whereRaw('LOWER(category_name) = ?', [strtolower($value)])->exists()) {
+                        $fail('The category name has already been taken.');
+                    }
+                },
+            ],
+            'category_type' => 'required|in:weekly,daily,monthly',
+            'duration' => 'required|integer', // Ensure duration is an integer
+            'interest_rate' => 'required|numeric', // Ensure interest_rate is numeric
+            'status' => 'required|in:active,inactive',
+        ]);
 
-                'category_id' => 'required',
-                'category_name' => 'required|string|max:100',
-                'category_type' => 'required|in:weekly,daily,monthly',
-                'duration' => 'required|integer',
-                'interest_rate' => 'required',
-                'status' => 'required|in:active,inactive',
-            ]);
+        $loan_category = LoanCategory::create([
+            'category_id' => $validateData['category_id'],
+            'category_name' => $validateData['category_name'],
+            'category_type' => $validateData['category_type'],
+            'duration' => $validateData['duration'],
+            'interest_rate' => $validateData['interest_rate'],
+            'status' => $validateData['status'],
+        ]);
 
-            $loan_category = LoanCategory::create([
-
-                'category_id' => $validateData['category_id'],
-                'category_name' => $validateData['category_name'],
-                'category_type' => $validateData['category_type'],
-                'duration' => $validateData['duration'],
-                'interest_rate' => $validateData['interest_rate'],
-                'status' => $validateData['status'],
-            ]);
-
-
-            return response()->json(['message' => 'Loan Category added successfully!'], 201);
-        }
-        catch(ValidationException $e){
-            Log::error('Validation error: ' . json_encode($e->errors()));
-            return response()->json(['errors' => $e->errors()], 422);
-        }
-        catch (\Exception $e) {
-            Log::error('Error creating Loan Category: ' . $e->getMessage());
-            return response()->json(['message' => 'Error created Loan Category'], 500);
-        }
+        return response()->json(['message' => 'Loan Category added successfully!'], 201);
+    } catch (ValidationException $e) {
+        Log::error('Validation error: ' . json_encode($e->errors()));
+        return response()->json(['errors' => $e->errors()], 422);
+    } catch (\Exception $e) {
+        Log::error('Error creating Loan Category: ' . $e->getMessage());
+        return response()->json(['message' => 'Error creating Loan Category'], 500);
     }
+}
+
 
     /**
      * Display the specified resource.
@@ -105,10 +101,60 @@ class LoanCategoryController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, string $id)
-    {
-        //
+public function update(Request $request, $category_id)
+{
+    try {
+        // Find the LoanCategory by category_id
+        $loan_category = LoanCategory::where('category_id', $category_id)->first();
+
+        // Check if the loan category exists
+        if (!$loan_category) {
+            return response()->json(['message' => 'Loan Category not found.'], 404);
+        }
+
+        // Validate the incoming request data
+        $validateData = $request->validate([
+            'category_id' => 'required|integer', // Allow only numbers for category_id
+            'category_name' => [
+                'required',
+                'string',
+                'max:100',
+                function ($attribute, $value, $fail) use ($loan_category) {
+                    // Check for existing category name, case insensitive, but ignore the current record
+                    if (LoanCategory::whereRaw('LOWER(category_name) = ?', [strtolower($value)])
+                        ->where('category_id', '!=', $loan_category->category_id) // Compare against category_id
+                        ->exists()) {
+                        $fail('The category name has already been taken.');
+                    }
+                },
+            ],
+            'category_type' => 'required|in:weekly,daily,monthly',
+            'duration' => 'required|integer', // Ensure duration is an integer
+            'interest_rate' => 'required|numeric', // Ensure interest_rate is numeric
+            'status' => 'required|in:active,inactive',
+        ]);
+
+        // Update the loan category
+        $loan_category->update([
+            'category_id' => $validateData['category_id'],
+            'category_name' => $validateData['category_name'],
+            'category_type' => $validateData['category_type'],
+            'duration' => $validateData['duration'],
+            'interest_rate' => $validateData['interest_rate'],
+            'status' => $validateData['status'],
+        ]);
+
+        return response()->json(['message' => 'Loan Category updated successfully!'], 200);
+    } catch (ValidationException $e) {
+        Log::error('Validation error: ' . json_encode($e->errors()));
+        return response()->json(['errors' => $e->errors()], 422);
+    } catch (\Exception $e) {
+        Log::error('Error updating Loan Category: ' . $e->getMessage());
+        return response()->json(['message' => 'Error updating Loan Category'], 500);
     }
+}
+
+
 
     /**
      * Remove the specified resource from storage.

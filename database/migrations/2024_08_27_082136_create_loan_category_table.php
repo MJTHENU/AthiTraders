@@ -16,8 +16,8 @@ class CreateLoanCategoryTable extends Migration
             $table->integer('duration');
             $table->integer('interest_rate');
             $table->enum('status', ['active', 'inactive']);
-            $table->date('added_on')->nullable();
-            $table->date('updated_on')->nullable();
+              $table->datetime('added_on')->useCurrent();
+            $table->datetime('updated_on')->useCurrentOnUpdate()->nullable();
         });
     }
 

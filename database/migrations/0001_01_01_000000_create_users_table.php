@@ -24,15 +24,18 @@ return new class extends Migration
             $table->enum('user_type', ['admin', 'employee', 'user']);
             $table->enum('status', ['active', 'inactive']);
             $table->string('mobile_number');
-            $table->string('email')->unique();
+            $table->string('email')->nullable()->unique();
+
             $table->string('alter_mobile_number')->nullable();
             $table->longText('profile_photo')->nullable();
             $table->longText('sign_photo')->nullable();
+             $table->longText('nominee_photo')->nullable();
+            $table->longText('nominee_sign')->nullable();
             $table->string('ref_name')->nullable();
             $table->string('ref_user_id')->nullable();
             $table->longText('ref_sign_photo')->nullable();
             $table->string('ref_aadhar_number')->nullable();
-            $table->string('qualification');
+            $table->string('qualification')->nullable();
             $table->string('designation')->nullable();
             // $table->date('updated_on')->nullable();
             $table->string('added_by');

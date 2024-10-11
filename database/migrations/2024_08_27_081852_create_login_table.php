@@ -15,7 +15,7 @@ class CreateLoginTable extends Migration
             $table->string('password');
             $table->string('security_password')->nullable();
             $table->enum('status', ['active', 'inactive']);
-            $table->string('email')->unique();
+            $table->string('email')->nullable()->unique();
             $table->string('mobile_number');
             $table->date('added_on')->nullable();
             $table->date('updated_on')->nullable();
