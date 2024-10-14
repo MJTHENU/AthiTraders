@@ -139,7 +139,7 @@ public function store(Request $request)
             'category_id' => 'required|integer',
             'loan_amount' => 'required|integer',
             'loan_date' => 'required|date',
-            'image' => 'nullable|string',
+            'image' => 'required|string',
             'loan_closed_date' => 'required|date',
             'status' => 'required|in:pending,inprogress,preclose,completed,cancelled',
         ]);

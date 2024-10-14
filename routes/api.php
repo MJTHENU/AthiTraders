@@ -37,6 +37,9 @@ Route::get('/fetch-loan-by-current-date', [LoanDueController::class,'fetchLoanBy
 Route::get('fetchLoanByEmpPaidDate/{user_id}', [LoanDueController::class, 'fetchLoanByEmpPaidDate']);
 Route::post('fetchLoanByEmpPaidDate', [LoanDueController::class, 'fetchLoanByEmpPaidDate']);
 
+//Loan_id Pass Status[pending,unpaid] top 1
+Route::get('/any-loan/{loan_id}', [LoanDueController::class, 'getLoanByLoanid']);
+
 //Current_date Show All loan_due list Array Format
 Route::get('fetchCitiesWithDueLoansArray', [LoanDueController::class, 'fetchCitiesWithDueLoansArray']);
 //Current_date Show All loan_due list Json Format
@@ -45,10 +48,11 @@ Route::get('fetchCitiesWithDueLoansJson', [LoanDueController::class, 'fetchCitie
 Route::get('fetchCitiesWithDueLoans/{city}', [LoanDueController::class, 'fetchCitiesWithDueLoansAndDetails']);
 //Current_date & city  Show Particular loan_due Customer 
 Route::get('fetchCitiesWithDueLoans/{city}/{loan_id}', [LoanDueController::class, 'fetchCitiesWithDueLoansAndDetailsSingle']);
-//Entry Current_date & city  Show Particular loan_due Customer 
-Route::put('updateEntryLoanDue/{city}/{loan_id}', [LoanDueController::class, 'updateEntryLoanDue']);
+//Entry Current_date & city  Show Particular loan_due Customer (it takes collection by from session)
+// Route::put('updateEntryLoanDue/{city}/{loan_id}', [LoanDueController::class, 'updateEntryLoanDue']);
 //Total Emp getLoanDueData Details
 Route::get('/loan-due', [LoanDueController::class, 'getLoanDueData']);
+Route::get('/loan-due-index', [LoanDueController::class, 'index']);
 //Each Single Emp getLoanDueData Details    
 Route::get('get-loan-due/{collection_by}', [LoanDueController::class, 'getLoanDueByCollection']);
 //Update Customer Loan_Due Amount  
@@ -62,6 +66,19 @@ Route::get('/loan/{loan_id}/dues', [LoanDueController::class, 'fetchLoanById']);
 Route::put('/loan-due/{loanDue}', [LoanDueController::class, 'update']);
 //Single Record Updated
 Route::put('/loan_due/{loan_id}/{due_date}/{status}', [LoanDueController::class, 'updateID']);
+
+//** Future 
+
+//Future date from the request Loan_due All Details
+Route::post('/loan-due/future-date', [LoanDueController::class, 'getLoanDueByFutureDate']);
+//Future date Only Cities List
+Route::post('/loan-due/date-city', [LoanDueController::class, 'fetchCitiesWithDueLoansFutureDate']);
+//Future date Only Cities use Customer List
+Route::post('/fetch-customers-future/{city}', [LoanDueController::class, 'fetchCitiesfutureDetails']);
+//Future date Only Cities use Single Customer Details  
+Route::post('/future-date/{city}/{loan_id}', [LoanDueController::class, 'fetchCityFutureDetailsSingle']);
+
+
 //
 Route::put('/update-loan', [LoanController::class, 'updateLoanDue']);
 
@@ -71,7 +88,7 @@ Route::put('/update-loan', [LoanController::class, 'updateLoanDue']);
 
 //Auto Generate Loan-id
 Route::resource('/loan', LoanController::class);
-Route::get('/indexweb', [LoanController::class, 'showloan-topthreee']);
+Route::get('/indexweb', [LoanController::class, 'indexweb']);
 Route::get('/loans/count-pending-inprogress', [LoanController::class, 'countPendingAndInProgressLoans']);
 Route::get('/autoloanid', [LoanController::class, 'generateLoanId']);
 Route::post('/loans', [LoanController::class, 'store']);

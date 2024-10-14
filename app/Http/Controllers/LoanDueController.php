@@ -191,7 +191,6 @@ $total_due_amount =0;
 
 
 //Emp Loan_due Paid Amount 
-
 public function fetchLoanByEmpPaidDate(Request $request)
 {
     // Log the entire request payload for debugging
@@ -228,7 +227,22 @@ public function fetchLoanByEmpPaidDate(Request $request)
     ], 200);
 }
 
+//Loan_id Pass Status[pending,unpaid] top 1
+public function getLoanByLoanid($loan_id)
+    {
+        // Fetch the loan records with the given loan_id and status of 'pending' or 'unpaid'
+        $loanRecords = LoanDue::where('loan_id', $loan_id)
+            ->whereIn('status', ['pending', 'unpaid']) // Use whereIn for multiple statuses
+            ->first(); // Use first() to get a single record or get() for multiple records
 
+        // Check if records found
+        if (!$loanRecords) {
+            return response()->json(['message' => 'No loan records found for the given loan ID and status.'], 404);
+        }
+
+        // Return the records in JSON format
+        return response()->json($loanRecords, 200);
+    }
 
 //Current_date Show All loan_due list Array Formet 
 public function fetchCitiesWithDueLoansArray()
@@ -347,8 +361,10 @@ public function fetchCitiesWithDueLoansJson()
                     'ld.due_date',
                     'ld.status'
                 )
-                ->whereDate('ld.due_date', '=', $currentDate)  // Filter by current date
-                ->where('ld.status', '=', 'unpaid')            // Filter for unpaid loans
+                ->whereDate('ld.due_date', '=', $currentDate)
+                //   ->whereIn('ld.status', ['unpaid', 'pending'])// Filter by current date
+                // ->where('ld.status', '=', 'unpaid')            // Filter for unpaid loans
+                
                 ->where('u.city', '=', $city)                  // Filter by the passed city parameter
                 ->get();
 
@@ -402,7 +418,7 @@ public function fetchCitiesWithDueLoansAndDetailsSingle($city, $loan_id)
                     'l.image'          // Include the image field from the loan table
                 )
                 ->whereDate('ld.due_date', '=', $currentDate)  // Filter by current date
-                ->where('ld.status', '=', 'unpaid')            // Filter for unpaid loans
+                // ->where('ld.status', '=', 'unpaid')            // Filter for unpaid loans
                 ->where('u.city', '=', $city)                  // Filter by the passed city parameter
                 ->where('ld.loan_id', '=', $loan_id)           // Filter by the passed loan_id parameter
                 ->get();
@@ -527,9 +543,13 @@ public function getLoanDueData()
 
             // Determine status
             $status = $totalPendingDueAmount > 0 ? "pending" : "paid";
+            
+            $username = DB::table('users')->where('user_id', $loan->collection_by)->value('user_name');
 
             return [
                 'collection_by' => $loan->collection_by,
+             'username'=>$username,
+
                 'loan_count' => $loan->loan_count,
                 'total_due_amount' => number_format($loan->total_due_amount, 2, '.', ''),
                 'total_paid_amount' => number_format($loan->total_paid_amount, 2, '.', ''),
@@ -786,6 +806,207 @@ public function updateCustLoanPayment(Request $request, $loan_id)
     // Fallback for invalid status
     return response()->json(['message' => 'Invalid status.'], 400);
 }
+
+//**  Future
+//Future date from the request Loan_due All Details
+public function getLoanDueByFutureDate(Request $request)
+    {
+        // Validate that 'future_date' is required and is a valid date
+        $request->validate([
+            'future_date' => 'required|date|after:today', // Ensures the date is in the future
+        ]);
+
+        // Get the future date from the request
+        $future_date = $request->input('future_date');
+
+        // Fetch loan_due records for the given future date
+        $loanDues = LoanDue::where('due_date', $future_date)->get();
+
+        // Check if any loan due records are found
+        if ($loanDues->isEmpty()) {
+            return response()->json(['message' => 'No loan dues found for the given future date.'], 404);
+        }
+
+        // Return the loan due records in the response
+        return response()->json([
+            'message' => 'Loan dues for the future date retrieved successfully.',
+            'loan_dues' => $loanDues
+        ], 200);
+    }
+    
+//Future date Only Cities List
+public function fetchCitiesWithDueLoansFutureDate(Request $request)
+{
+    try {
+        // Validate the future date provided by the user
+        $request->validate([
+            'future_date' => 'required|date|after_or_equal:today'
+        ]);
+
+        // Get the user-provided future date
+        $futureDate = $request->input('future_date');
+        $futureDay = Carbon::parse($futureDate)->format('l');  // Day of the week (e.g., 'Monday')
+
+        // Log the future date and day for debugging
+        \Log::info('Future date: ' . $futureDate . ', Day: ' . $futureDay);
+
+        // Fetch cities with users who have unpaid loans due on the selected date
+        $cities = DB::table('loan_due as ld')
+            ->join('users as u', 'u.user_id', '=', 'ld.user_id')
+            ->whereDate('ld.due_date', '=', $futureDate)
+            ->where('ld.status', '=', 'unpaid')  // Filter for unpaid loans
+            ->distinct()
+            ->pluck('u.city');  // Fetch distinct city names
+
+        // Check if any cities are found
+        if ($cities->isEmpty()) {
+            return response()->json(['message' => 'No cities found for users with due loans on the selected date'], 404);
+        }
+
+        // Count the total number of distinct cities
+        $totalCities = $cities->count();
+
+        // Dynamically assign city keys (city1, city2, etc.)
+        $formattedCities = [];
+        foreach ($cities as $index => $city) {
+            $formattedCities['city' . ($index + 1)] = $city;
+        }
+
+        // Return the cities, total count, future day, and future date
+        return response()->json([
+            'message' => 'Cities fetched successfully',
+            'totalCities' => $totalCities,   // Total number of cities
+            'futureDay' => $futureDay,       // Day of the week for the selected date
+            'futureDate' => $futureDate,     // Selected future date
+            'cities' => $formattedCities     // List of cities in 'cityN' format
+        ], 200);
+
+    } catch (\Exception $e) {
+        // Log the exception for debugging
+        \Log::error('Error fetching cities: ' . $e->getMessage());
+
+        return response()->json([
+            'message' => 'An error occurred while fetching cities'
+        ], 500);
+    }
+}
+
+//Future date Only Cities use Customer List
+public function fetchCitiesfutureDetails(Request $request, $city)
+    {
+        try {
+            // Validate the future date provided by the user
+            $request->validate([
+                'future_date' => 'required|date|after_or_equal:today',
+            ]);
+
+            // Get the user-provided future date
+            $futureDate = $request->input('future_date');
+
+            // Log the future date and city for debugging
+            \Log::info('Future date: ' . $futureDate . ', City: ' . $city);
+
+            // Perform the JOIN query between loan_due and users tables, filtering by city and future date
+            $loanDetails = DB::table('loan_due as ld')
+                ->join('users as u', 'u.user_id', '=', 'ld.user_id')  // Join with the users table
+                ->select(
+                    'u.user_id',
+                    'u.user_name',      // Ensure this is the correct column name for user names
+                    'u.address',
+                    'ld.loan_id',
+                    'ld.due_amount',
+                    'ld.due_date',
+                    'ld.status'
+                )
+                ->whereDate('ld.due_date', '=', $futureDate)  // Filter by future date
+                ->where('ld.status', '=', 'unpaid')            // Filter for unpaid loans
+                ->where('u.city', '=', $city)                  // Filter by the passed city parameter
+                ->get();
+
+            // Check if any loan details are found
+            if ($loanDetails->isEmpty()) {
+                return response()->json(['message' => 'No users or loans found for due loans in the specified city on the selected date'], 404);
+            }
+
+            // Prepare the response data
+            $responseData = [
+                'message' => 'Users and loan details fetched successfully',
+                'total_customer_count' => $loanDetails->count(), // Count of customers with due loans
+                'customers' => $loanDetails // Each customer details as an array
+            ];
+
+            // Return the fetched data in the response
+            return response()->json($responseData, 200);
+
+        } catch (\Exception $e) {
+            // Log the exception message for debugging
+            \Log::error('Error fetching loan details: ' . $e->getMessage());
+            return response()->json(['message' => 'An error occurred while fetching loan details'], 500);
+        }
+    }
+    
+//Future date Only Cities use Single Customer Details  
+public function fetchCityFutureDetailsSingle(Request $request, $city, $loan_id)
+    {
+        try {
+            // Validate the future date provided by the user
+            $request->validate([
+                'future_date' => 'required|date|after_or_equal:today',
+            ]);
+
+            // Get the user-provided future date
+            $futureDate = $request->input('future_date');
+
+            // Log the future date, city, and loan ID for debugging
+            \Log::info('Future date: ' . $futureDate . ', City: ' . $city . ', Loan ID: ' . $loan_id);
+
+            // Perform the JOIN query between loan_due, users, and loan tables, filtering by city and loan_id
+            $loanDetails = DB::table('loan_due as ld')
+                ->join('users as u', 'u.user_id', '=', 'ld.user_id')  // Join with the users table
+                ->join('loan as l', 'l.loan_id', '=', 'ld.loan_id')    // Join with the loan table
+                ->select(
+                    'u.user_id',
+                    'u.user_name', 
+                    'u.address', 
+                    'u.mobile_number',
+                    'u.profile_photo',
+                    'u.sign_photo',
+                    'u.ref_name',
+                    'u.ref_user_id',
+                    'u.nominee_photo',
+                    'u.nominee_sign',
+                    'ld.due_amount', 
+                    'ld.paid_amount', 
+                    'ld.status', 
+                    'l.image'  // Include the image field from the loan table
+                )
+                ->whereDate('ld.due_date', '=', $futureDate)  // Filter by future date
+                ->where('ld.status', '=', 'unpaid')            // Filter for unpaid loans
+                ->where('u.city', '=', $city)                  // Filter by the passed city parameter
+                ->where('ld.loan_id', '=', $loan_id)           // Filter by the passed loan_id parameter
+                ->get();
+
+            // Check if any loan details are found
+            if ($loanDetails->isEmpty()) {
+                return response()->json(['message' => 'No users or loans found for the specified criteria'], 404);
+            }
+
+            // Prepare the response data
+            $responseData = [
+                'message' => 'User and loan details fetched successfully',
+                'total_customer_count' => $loanDetails->count(), // Count of customers with due loans
+                'customers' => $loanDetails // Each customer details as an array
+            ];
+
+            // Return the fetched data in the response
+            return response()->json($responseData, 200);
+
+        } catch (\Exception $e) {
+            // Log the exception message for debugging
+            \Log::error('Error fetching loan details: ' . $e->getMessage());
+            return response()->json(['message' => 'An error occurred while fetching loan details'], 500);
+        }
+    }
 
     /**
      * Show the form for creating a new resource.
