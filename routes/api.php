@@ -77,6 +77,8 @@ Route::post('/loan-due/date-city', [LoanDueController::class, 'fetchCitiesWithDu
 Route::post('/fetch-customers-future/{city}', [LoanDueController::class, 'fetchCitiesfutureDetails']);
 //Future date Only Cities use Single Customer Details  
 Route::post('/future-date/{city}/{loan_id}', [LoanDueController::class, 'fetchCityFutureDetailsSingle']);
+//Update Future Due Loan_id
+Route::put('/update-future-date/{loan_id}', [LoanDueController::class, 'updateFutureDetailsSingle']);
 
 
 //

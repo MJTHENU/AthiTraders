@@ -1008,6 +1008,94 @@ public function fetchCityFutureDetailsSingle(Request $request, $city, $loan_id)
         }
     }
 
+//Update Future Due Loan_id
+public function updateFutureDetailsSingle(Request $request, $loan_id)
+    {
+        // Log the request details
+        Log::info("Received request to update loan details for loan_id: $loan_id", [
+            'request' => $request->all()
+        ]);
+
+        // Validate the incoming request
+        $request->validate([
+            'future_date' => 'required|date',
+            'collection_by' => 'required|string',
+            'paid_amount' => 'required|numeric|min:0',
+            'status' => 'required|in:paid,pending'
+        ]);
+
+        // Assign request variables
+        $future_date = $request->future_date;
+        $collection_by = $request->collection_by;
+        $paid_amount = $request->paid_amount;
+        $status = $request->status;
+
+        // 1) Select today's loan record by future date
+        $futureLoan = LoanDue::where('loan_id', $loan_id)
+            ->where('due_date', $future_date)
+            ->first();
+
+        if (!$futureLoan) {
+            Log::error("No loan record found for loan_id: $loan_id and due_date: $future_date");
+            return response()->json(['message' => "No loan record found for future date $future_date."], 404);
+        }
+
+        // 2) Update loan_due table for future loan
+        $futureLoan->paid_amount = $paid_amount;
+        $futureLoan->collection_by = $collection_by;
+        $futureLoan->status = $status; // Update the status based on the request (pending/paid)
+        $futureLoan->paid_on = now(); // Log the payment time
+        $futureLoan->save();
+
+        Log::info("Updated loan record for future date: $future_date", ['loan' => $futureLoan]);
+
+        // 3) Calculate pending amount if status is pending, otherwise it's 0
+        $pending_amount = ($status == 'pending') ? $futureLoan->due_amount - $paid_amount : 0;
+        $futureLoan->pending_amount = $pending_amount;
+        $futureLoan->save();
+
+        Log::info("Updated pending amount for loan_id: $loan_id, due_date: $future_date", [
+            'pending_amount' => $pending_amount
+        ]);
+
+        // 4) Fetch the next unpaid loan record
+        $nextLoan = LoanDue::where('loan_id', $loan_id)
+            ->where('status', 'unpaid')
+            ->orderBy('due_date', 'ASC')
+            ->first();
+
+        if (!$nextLoan) {
+            Log::error("No next unpaid loan found for loan_id: $loan_id");
+            return response()->json(['message' => 'No next unpaid loan found.'], 404);
+        }
+
+        // 5) Update next_amount in the next unpaid loan record
+        $next_due_amount = $futureLoan->due_amount + $pending_amount;
+        $nextLoan->next_amount = $next_due_amount;
+        $nextLoan->save();
+
+        Log::info("Updated next amount for next due loan_id: $loan_id", [
+            'next_due_date' => $nextLoan->due_date,
+            'next_due_amount' => $next_due_amount
+        ]);
+
+        // Return success response with the updated loan details
+        return response()->json([
+            'message' => ($status == 'pending') ? "Today's Due Pending" : "Payment Marked as Paid",
+            'loan' => [
+                'id' => $futureLoan->id,
+                'collection_by' => $collection_by,
+                'due_amount' => $futureLoan->due_amount,
+                'paid_amount' => $paid_amount,
+                'paid_on' => $futureLoan->paid_on,
+                'status' => $status,
+                'pending_due_amount' => $pending_amount
+            ],
+            'next_due_date' => $nextLoan->due_date,
+            'next_due_amount' => $next_due_amount
+        ]);
+    }
+
     /**
      * Show the form for creating a new resource.
      */
